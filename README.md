@@ -6,7 +6,7 @@ A browser-based JavaScript library for building chat interfaces for [Amazon Conn
 
 > **New to Amazon Connect?** Start with the [pre-built Hosted Widget](https://docs.aws.amazon.com/connect/latest/adminguide/add-chat-to-website.html) before customizing with this library.
 
-![image](https://github.com/user-attachments/assets/92122323-a4ba-475e-8f5b-463d4d4039c1)
+![ChatJS diagram](./chatjs-initialization-diagram.png)
 
 ## Quick Links
 
