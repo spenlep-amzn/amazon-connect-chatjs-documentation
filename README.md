@@ -846,7 +846,7 @@ chatSession.onConnectionEstablished(event => {
     maxResults: 15,
     // nextToken?: nextToken - OPTIONAL, for pagination
   }).then((response) => {
-      const { initialContactId, nextToken, transcript: latestTranscript } = response.data;
+      const { InitialContactId, NextToken, Transcript: latestTranscript } = response.data;
       // ...
       setState('transcript', latestTranscript)
     })
