@@ -339,9 +339,9 @@ connect.contact((contact: connect.Contact) => {
 ```
 </details>
 
-## Importing Adjacent AWS-SDK
+### Importing Adjacent AWS-SDK
 
-When using ChatJS with other AWS SDK libraries, maintain this import order:
+When using ChatJS alongside AWS SDK libraries, follow this specific import order:
 
 ```js
 import 'amazon-connect-streams';     // Optional: MUST be before ChatJS
