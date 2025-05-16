@@ -2,9 +2,9 @@
 
 [![npm](https://img.shields.io/npm/v/amazon-connect-chatjs.svg?color=orange)](https://www.npmjs.com/package/amazon-connect-chatjs) [![MIT License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) ![TypeScript](https://img.shields.io/badge/TypeScript-Ready-green.svg) ![package size](https://img.shields.io/bundlephobia/minzip/amazon-connect-chatjs)
 
-A browser-based JavaScript library for building chat interfaces for [Amazon Connect](https://docs.aws.amazon.com/connect/latest/adminguide/what-is-amazon-connect.html). Build customer chat widgets or agent interfaces with real-time WebSocket communication, TypeScript support, and [Amazon Connect Streams](https://github.com/aws/amazon-connect-streams) integration for agent UIs.
+A browser-based JavaScript library for building chat interfaces for [Amazon Connect](https://docs.aws.amazon.com/connect/latest/adminguide/what-is-amazon-connect.html) with TypeScript support, AWS SDK integration for API calls, and WebSocket connection management. The library also supports custom builders for agent chat interfaces when integrated with [Amazon Connect Streams](https://github.com/aws/amazon-connect-streams).
 
-> **New to Amazon Connect?** Start with the [pre-built Hosted Widget](https://docs.aws.amazon.com/connect/latest/adminguide/add-chat-to-website.html) before customizing with this library.
+📢 **New to Amazon Connect?** Start with the [pre-built Hosted Widget](https://docs.aws.amazon.com/connect/latest/adminguide/add-chat-to-website.html) before customizing with this library.
 
 ![ChatJS diagram](./chatjs-initialization-diagram.png)
 
@@ -68,6 +68,7 @@ const customerChatSession = connect.ChatSession.create({
   },
   options: { region: "us-west-2" }, // optional
   type: "CUSTOMER",
+  disableCSM: true
 });
 await customerChatSession.connect();
 
@@ -125,6 +126,7 @@ await customerChatSession.disconnectParticipant();
         },
         options: { region: REGION }, // optional
         type: "CUSTOMER",
+        disableCSM: true
       });
       await customerChatSession.connect();
 
@@ -232,6 +234,7 @@ connect.contact((contact: connect.Contact) => {
     //   },
     //   type: connect.ChatSession.SessionTypes.AGENT, // REQUIRED
     //   websocketManager: connect.core.getWebSocketManager() // REQUIRED
+    //   disableCSM: true
     // });
 
     // Step 5: Set up event listeners
@@ -313,6 +316,7 @@ connect.contact((contact: connect.Contact) => {
           //   },
           //   type: connect.ChatSession.SessionTypes.AGENT, // REQUIRED
           //   websocketManager: connect.core.getWebSocketManager() // REQUIRED
+          //   disableCSM: true
           // });
 
           agentChatSession.onConnectionEstablished(event => {
@@ -416,6 +420,7 @@ const chatSession = await connect.ChatSession.create({
     region: "us-east-1", // (optional) defaults to `region` set in `.setGlobalConfig()`
   },
   type: window.connect.ChatSession.SessionTypes.CUSTOMER, // REQUIRED - options: `CUSTOMER`, `AGENT`
+  disableCSM: true
 });
 ```
 
@@ -1244,7 +1249,6 @@ chatSession.onChatRehydrated(event => {
 
 Detailed feature documentation can be found in our [docs/](docs) directory:
 
-- [Browser Refresh Support](docs/browser-refresh-feature.md)
 - [Persistent Chat](docs/persistent-chat-feature.md)
 - [Attachment Scanner](docs/attachment-scanner-feature.md)
 - [Interactive Messages](docs/interactive-messages-feature.md)
@@ -1272,75 +1276,123 @@ connect.ChatSession.setGlobalConfig({
 });
 ```
 
+### Disable Logs
+
+TODO
+
+```
+connect.ChatSession.setGlobalConfig({
+      ...(ENABLE_CHATJS_LOGS ? { loggerConfig: loggerConfig } : {}),
+      webSocketManagerConfig: {
+        isNetworkOnline: customNetworkStatus,
+      },
+    })
+```
+
 ### Connection Management
 
 ```js
-chatSession.onConnectionLost(() => {
+chatSession.onConnectionLost(async () => {
   console.log('Websocket lost connection');
   // Implement reconnection logic
+  await chatSession.connect();
 });
 ```
 
-### Health Checks
+### Network Health Checks
 
 ```js
+chatSession.onConnectionEstablished(() => {
+  console.log('WebSocket connection has been established/reestablished"');
+});
+
+chatSession.onConnectionBroken(event => {
+  console.log('WebSocket connection is broken or terminated');
+});
+
 chatSession.onDeepHeartbeatSuccess(() => {
-  console.log('Connection healthy');
+  console.log('WebSocket connection healthy');
 });
 
 chatSession.onDeepHeartbeatFailure(() => {
-  console.log('Connection issues detected');
+  console.log('WebSocket connection issues detected');
 });
 ```
 
-### Common Issues
+### Handle Browser Refresh
 
-#### Missing Agent Messages After Network Reconnection
-**Issue**: End-customer loses network connection and agent messages fail to appear after reconnection.
+To reconnect to an ongoing chat session, simply pass in the existing `chatDetails` and call `chatSession.connect()`
 
-**Symptoms**:
-- Gap in message history
-- Missing agent messages
-- Network disconnection warnings
-
-**Cause**:
-When network connection is lost:
-- Messages continue to be stored in Connect backend
-- Client misses messages during disconnection
-- Websocket reconnection alone doesn't retrieve missed messages
-
-**Solution**:
-
-1. Implement reconnection handling:
 ```js
-const chatSession = connect.ChatSession.create({ /* ... */ });
+/* Initial page load */
+// const startChatResponse = await fetch().then(response => response.data);
+// const chatDetails = startChatResponse; // { ContactId, ParticipantId, ParticipantToken }
+// const chatSession = connect.ChatSession.create({ chatDetails: { contactId, participantId, participantToken }, /* ... */ });
+// sessionStorage.setItem('chatjs-session-chat-details', JSON.stringify(chatDetails));
+// await chatSession.connect();
 
+/* User has refreshed page, reconnect to same chat session */
+const existingChatDetails = sessionStorage.getItem('chatjs-session-chat-details');
+const reloadedChatSession = connect.ChatSession.create({ chatDetails: existingChatDetails, /* ... */ });
+// Reestablish the WebSocket connection
+await reloadedChatSession.connect();
+
+// Fetch any unrecieve messages/events
+reloadedChatSession.getTranscript({
+    scanDirection: "BACKWARD",
+    sortOrder: "ASCENDING",
+    maxResults: 15
+}).then((response) => {
+  const { Transcript } = response.data; // [{message}, {message}, ...]
+  // render the updated transcript 
+});
+```
+
+### Handling Out-of-Order WebSocket Messages
+
+ChatJS delivers messages in the order they are received, which may not match their actual timestamp order. You'll need to manually sort messages using their timestamps and filter duplicates by ID.
+
+```js
+const response = await chatSession.getTranscript({
+    scanDirection: "BACKWARD",
+    sortOrder: "ASCENDING",
+    maxResults: 15
+});
+
+const { Transcript } = response.data;
+Transcript.forEach(message => {
+    const timestamp = new Date(message.AbsoluteTime).toLocaleTimeString();
+    const id = message.Id;
+    // Sort messages by timestamp and filter duplicates using message ID
+});
+```
+
+### Messages Not Received During Network Disconnection
+
+If a chat participant loses network connection during a session, the client may fail to receive WebSocket messages.
+
+ChatJS requires manually calling `chatSession.getTranscript()` to fetch missed messages after reconnecting.
+
+```js
+// Fetch any missed messages by retrieving the recent transcript
 chatSession.onConnectionEstablished(() => {
-  fetchMissedMessages();
-});
-```
+    console.log('WebSocket connection has been established/reestablished"');
 
-2. Fetch missed messages:
-```js
-async function fetchMissedMessages() {
-  try {
+    // Get recent messages including any that were missed while offline
     const response = await chatSession.getTranscript({
-      scanDirection: "BACKWARD",
-      sortOrder: "ASCENDING",
-      maxResults: 15
+        scanDirection: "BACKWARD",
+        sortOrder: "ASCENDING",
+        maxResults: 15
     });
 
-    const { transcript } = response.data;
-    // Process and display missed messages
-  } catch (error) {
-    console.error("Failed to fetch transcript:", error);
-  }
-}
+    const { Transcript } = response.data;
+    // ... filter and render the updated transcript
+});
 ```
 
-#### CSM not initialized
+### CSM not initialized
 
-Client-side-metric (CSM) functionality is enabled by default but safe to disable.
+Client-side-metric (CSM) is an internal feature. This functionality is enabled by default but completely safe to disable.
 
 ```log
 ChatJS-csmService: Failed to addCountAndErrorMetric csm:  ReferenceError: Property 'csm' doesn't exist undefined
@@ -1350,13 +1402,46 @@ ChatJS-csmService: Failed to addLatencyMetric csm:  ReferenceError: Property 'cs
 addCSMCountMetric: CSM not initialized TypeError: Cannot read properties of null (reading 'Metric')
 ```
 
-Proposed fix:
+**Fix:**
 
 ```js
 connect.ChatSession.create({
   // ...
   disableCSM: true
 })
+```
+
+### React Native WebSocket Configuration
+
+ChatJS relies on browser's `window.navigator.onLine` for network monitoring, which isn't available in React Native (Hermes JS Engine). Instead, you'll need to configure ChatJS to use React Native's NetInfo API for network status checks.
+
+```js
+// App.jsx
+
+import React, { useState, useEffect } from 'react';
+import 'amazon-connect-chatjs' // ^1.5.0 (imports `window.connect`)
+import NetInfo from '@react-native-community/netinfo';
+
+const MyChatApp = () => {
+  const [deviceIsOnline, setDeviceIsOnline] = useState(true);
+  
+  useEffect(() => {
+    // Subscribe to network status updates
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setDeviceIsOnline(state.isConnected);
+    });
+
+    return () => { unsubscribe(); }; // Cleanup to prevent memory leaks
+  }, []);
+
+  const getNetworkStatus = () => deviceIsOnline;
+
+  window.connect.ChatSession.setGlobalConfig({
+    webSocketManagerConfig: {
+      isNetworkOnline: getNetworkStatus, // ADD THIS
+    },
+  })
+};
 ```
 
 ## License
