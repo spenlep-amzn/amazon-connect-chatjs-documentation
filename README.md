@@ -15,7 +15,7 @@ A browser-based JavaScript library for building chat interfaces for [Amazon Conn
 - [API Reference](#api-reference)
 - [Feature Documentation](#features)
 - [Example Code](#example-code)
-- [Troubleshooting](#troubleshooting)
+- [Common Problems & Solutions](#common-problems--solutions)
 
 ## Announcements
 
@@ -1264,7 +1264,7 @@ Detailed feature documentation can be found in our [docs/](docs) directory:
 - **Mobile Examples**
   - [React Native Customer Chat](https://github.com/amazon-connect/amazon-connect-chat-ui-examples/tree/master/mobileChatExamples/connectReactNativeChat)
 
-## Troubleshooting
+## Common Problems & Solutions
 
 ### Enable Debug Logging
 
@@ -1276,17 +1276,13 @@ connect.ChatSession.setGlobalConfig({
 });
 ```
 
-### Disable Logs
-
-TODO
+### Disable Logging
 
 ```
-connect.ChatSession.setGlobalConfig({
-      ...(ENABLE_CHATJS_LOGS ? { loggerConfig: loggerConfig } : {}),
-      webSocketManagerConfig: {
-        isNetworkOnline: customNetworkStatus,
-      },
-    })
+window.connect.ChatSession.setGlobalConfig({
+  loggerConfig: { useDefaultLogger: false }, // disable
+  // loggerConfig: { useDefaultLogger: true }, // enable (default)
+});
 ```
 
 ### Connection Management
@@ -1321,23 +1317,37 @@ chatSession.onDeepHeartbeatFailure(() => {
 
 ### Handle Browser Refresh
 
-To reconnect to an ongoing chat session, simply pass in the existing `chatDetails` and call `chatSession.connect()`
+When a user refreshes their browser during an active chat, you'll want to reconnect them to their existing session instead of starting a new one.
+
+When initially creating a chat session, store the `chatDetails` (received from [StartChatContact](https://docs.aws.amazon.com/connect/latest/APIReference/API_StartChatContact.html) API) in `sessionStorage`
+On page load, check if `chatDetails` exists in `sessionStorage`:
 
 ```js
 /* Initial page load */
-// const startChatResponse = await fetch().then(response => response.data);
-// const chatDetails = startChatResponse; // { ContactId, ParticipantId, ParticipantToken }
-// const chatSession = connect.ChatSession.create({ chatDetails: { contactId, participantId, participantToken }, /* ... */ });
-// sessionStorage.setItem('chatjs-session-chat-details', JSON.stringify(chatDetails));
-// await chatSession.connect();
+const startChatResponse = await fetch('url-to-my-chat-backend').then(response => response.data);
+// --- Sample Backend Code ---
+// import AWS from 'aws-sdk'; // v2.1692.0
+// const connect = new AWS.Connect({
+//   region: 'us-west-2',
+//   credentials: new AWS.Credentials({ accessKeyId, secretAccessKey, sessionToken })
+// });
+// const startChatRequest = { InstanceId, ContactFlowId, SupportedMessagingContentTypes };
+// chatDetails = await connect.startChatContact(startChatRequest).promise(); // StartChatContact API
+// return { data: chatDetails } // { ContactId, ParticipantId, ParticipantToken }
+const chatDetails = startChatResponse; // { ContactId, ParticipantId, ParticipantToken }
+sessionStorage.setItem('chatjs-session-chat-details', JSON.stringify(chatDetails));
 
-/* User has refreshed page, reconnect to same chat session */
-const existingChatDetails = sessionStorage.getItem('chatjs-session-chat-details');
+const chatSession = connect.ChatSession.create({ chatDetails: { contactId, participantId, participantToken }, /* ... */ });
+await chatSession.connect(); // Establish the WebSocket connection
+```
+
+```
+/* Second page load (browser refresh) */
+const existingChatDetails = sessionStorage.getItem('chatjs-session-chat-details'); // { ContactId, ParticipantId, ParticipantToken }
 const reloadedChatSession = connect.ChatSession.create({ chatDetails: existingChatDetails, /* ... */ });
-// Reestablish the WebSocket connection
-await reloadedChatSession.connect();
+await reloadedChatSession.connect(); // Reestablish the WebSocket connection
 
-// Fetch any unrecieve messages/events
+// (Optoinal) Fetch any unrecieved messages/events
 reloadedChatSession.getTranscript({
     scanDirection: "BACKWARD",
     sortOrder: "ASCENDING",
