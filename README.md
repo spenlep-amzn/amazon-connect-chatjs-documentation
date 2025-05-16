@@ -1278,7 +1278,7 @@ connect.ChatSession.setGlobalConfig({
 
 ### Disable Logging
 
-```
+```js
 window.connect.ChatSession.setGlobalConfig({
   loggerConfig: { useDefaultLogger: false }, // disable
   // loggerConfig: { useDefaultLogger: true }, // enable (default)
@@ -1293,11 +1293,7 @@ chatSession.onConnectionLost(async () => {
   // Implement reconnection logic
   await chatSession.connect();
 });
-```
 
-### Network Health Checks
-
-```js
 chatSession.onConnectionEstablished(() => {
   console.log('WebSocket connection has been established/reestablished');
 });
@@ -1305,7 +1301,11 @@ chatSession.onConnectionEstablished(() => {
 chatSession.onConnectionBroken(event => {
   console.log('WebSocket connection is broken or terminated');
 });
+```
 
+### Network Health Checks
+
+```js
 chatSession.onDeepHeartbeatSuccess(() => {
   console.log('WebSocket connection healthy');
 });
@@ -1341,7 +1341,7 @@ const chatSession = connect.ChatSession.create({ chatDetails: { contactId, parti
 await chatSession.connect(); // Establish the WebSocket connection
 ```
 
-```
+```js
 /* Second page load (browser refresh) */
 const existingChatDetails = sessionStorage.getItem('chatjs-session-chat-details'); // { ContactId, ParticipantId, ParticipantToken }
 const reloadedChatSession = connect.ChatSession.create({ chatDetails: existingChatDetails, /* ... */ });
