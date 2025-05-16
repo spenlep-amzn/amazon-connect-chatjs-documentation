@@ -1299,7 +1299,7 @@ chatSession.onConnectionLost(async () => {
 
 ```js
 chatSession.onConnectionEstablished(() => {
-  console.log('WebSocket connection has been established/reestablished"');
+  console.log('WebSocket connection has been established/reestablished');
 });
 
 chatSession.onConnectionBroken(event => {
@@ -1347,7 +1347,7 @@ const existingChatDetails = sessionStorage.getItem('chatjs-session-chat-details'
 const reloadedChatSession = connect.ChatSession.create({ chatDetails: existingChatDetails, /* ... */ });
 await reloadedChatSession.connect(); // Reestablish the WebSocket connection
 
-// (Optoinal) Fetch any unrecieved messages/events
+// (Optional) Fetch any unreceived messages/events
 reloadedChatSession.getTranscript({
     scanDirection: "BACKWARD",
     sortOrder: "ASCENDING",
@@ -1386,7 +1386,7 @@ ChatJS requires manually calling `chatSession.getTranscript()` to fetch missed m
 ```js
 // Fetch any missed messages by retrieving the recent transcript
 chatSession.onConnectionEstablished(() => {
-    console.log('WebSocket connection has been established/reestablished"');
+    console.log('WebSocket connection has been established/reestablished');
 
     // Get recent messages including any that were missed while offline
     const response = await chatSession.getTranscript({
